@@ -1,0 +1,121 @@
+/* SignLanguageOverlay.css */
+.sign-language-overlay {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 300px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  padding: 15px;
+  color: white;
+  z-index: 10000;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.avatar-container {
+  width: 300px;
+  height: 300px;
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sign-info {
+  padding: 10px;
+}
+
+.word-display {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.word-label {
+  font-size: 14px;
+  color: #ccc;
+}
+
+.word-text {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.progress-info {
+  font-size: 12px;
+  color: #ccc;
+}
+
+.loading-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100px;
+  font-size: 14px;
+  color: #ccc;
+}
+
+.progress-text {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.reference-button {
+  background: #4a90e2;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.reference-button:hover {
+  background: #357abd;
+}
+
+.reference-video {
+  margin-top: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: black;
+}
+
+.reference-video video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sign-language-video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sign-language-error {
+  color: white;
+  text-align: center;
+  padding: 20px;
+}
+
+.sign-language-error button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #4a90e2;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.sign-language-error button:hover {
+  background: #357abd;
+}
