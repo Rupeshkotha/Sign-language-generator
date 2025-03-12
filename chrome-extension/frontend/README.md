@@ -1,3 +1,57 @@
+# AI Based Sign Language Generator
+
+Problem Statement: 
+
+Many online videos are inaccessible to the Deaf and Hard of Hearing (DHH) community due to a lack of sign language interpretation. This challenge aims to develop a browser extension that converts video content into sign language using pre-recorded videos or an AI-driven avatar
+
+
+The solution is to develop a browser based extension that analyze video content and provides real time sign language interepretation for the deaf and Hard hearing community. It can use pre-recorded sign language videos for common phrases or an AI powered avatar to dynamically generate sign language based on speech or subtitles. The extension seamlessly integrates with online videos, ensuring the accessability and inclusivity without requiring changes from content creators. 
+
+Installation Instructions:
+
+Steps to install and set up the project on a local machine 
+
+1) Clone the repository 
+    https://github.com/Rupeshkotha/Sign-language-generator.git
+
+2) Navigate to the project directory
+
+3) Install requirements using the requirements.txt file
+
+   pip install -r requirements.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
