@@ -47,36 +47,31 @@ const SignLanguageOverlay = ({ signData, mainVideoElement, isEnabled }) => {
   const transformKeypoints = (keypoints) => {
     console.log('Raw keypoints data:', keypoints);
     
+    // Check if keypoints is defined
     if (!keypoints || !keypoints.keyframes) {
-      console.error('Invalid keypoint data structure:', keypoints);
-      return null;
+        console.error('Invalid keypoint data structure:', keypoints);
+        return null;
     }
 
     try {
-      // The backend already provides the data in the correct format
-      const transformedData = {
-        duration: keypoints.duration || keypoints.keyframes.length / 30,
-        keyframes: keypoints.keyframes.map(frame => ({
-          left_hand: frame.left_hand,
-          right_hand: frame.right_hand,
-          pose: frame.pose,
-          timestamp: frame.timestamp,
-          confidence: frame.confidence
-        }))
-      };
+        const transformedData = {
+            duration: keypoints.duration || 3.0, // Default duration if not provided
+            fps: keypoints.fps || 30, // Default fps if not provided
+            keyframes: keypoints.keyframes.map(frame => ({
+                left_hand: frame.left_hand || [],
+                right_hand: frame.right_hand || [],
+                pose: frame.pose || [],
+                timestamp: frame.timestamp || 0
+            }))
+        };
 
-      console.log('Successfully transformed keypoints:', {
-        frameCount: transformedData.keyframes.length,
-        duration: transformedData.duration,
-        sampleFrame: transformedData.keyframes[0]
-      });
-
-      return transformedData;
+        console.log('Transformed keypoints data:', transformedData);
+        return transformedData;
     } catch (error) {
-      console.error('Error transforming keypoints:', error);
-      return null;
+        console.error('Error transforming keypoints:', error);
+        return null;
     }
-  };
+};
   
   const handleAnimationComplete = () => {
     console.log('SignLanguageOverlay: Animation complete');

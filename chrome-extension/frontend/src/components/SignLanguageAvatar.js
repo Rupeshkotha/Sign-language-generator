@@ -8,7 +8,8 @@ const NUM_POSE_LANDMARKS = 33;
 const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
-  const avatarRef = useRef(null);
+  const rendererRef = useRef(null);
+  const cameraRef = useRef(null);
   const animationRef = useRef(null);
   const jointsRef = useRef({
     leftHand: [],
@@ -46,47 +47,46 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
         0.1,
         1000
       );
-      camera.position.z = 5;
+      camera.position.z = 2;  // Moved camera closer
+      camera.position.y = 1;  // Adjusted height
 
-      // Set up renderer
-      const renderer = new THREE.WebGLRenderer({ alpha: true });
+      // Set up renderer with transparency
+      const renderer = new THREE.WebGLRenderer({ 
+        alpha: true,
+        antialias: true 
+      });
       renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+      renderer.setClearColor(0x000000, 0);
       containerRef.current.appendChild(renderer.domElement);
 
-      // Create joints
-      const joints = {
-        leftHand: [],
-        rightHand: [],
-        pose: []
-      };
+      // Add lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(0, 1, 2);
+      scene.add(directionalLight);
 
-      // Helper function to create joints
-      const createJoints = (count, color, parent = scene) => {
-        const joints = [];
-        const geometry = new THREE.SphereGeometry(0.05, 32, 32);
-        const material = new THREE.MeshBasicMaterial({ color });
-        
-        for (let i = 0; i < count; i++) {
-          const joint = new THREE.Mesh(geometry, material);
-          parent.add(joint);
-          joints.push(joint);
-        }
-        return joints;
-      };
+      // Create avatar
+      const avatar = createAvatar();
+      if (avatar) {
+        scene.add(avatar);
+      }
 
-      // Create joints with different colors
-      joints.leftHand = createJoints(21, 0x00ff00);  // Green for left hand
-      joints.rightHand = createJoints(21, 0x0000ff); // Blue for right hand
-      joints.pose = createJoints(33, 0xff0000);      // Red for pose
+      // Add orbit controls for debugging
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
 
-      jointsRef.current = joints;
-      rendererRef.current = renderer;
+      // Store refs
       sceneRef.current = scene;
+      rendererRef.current = renderer;
       cameraRef.current = camera;
 
       // Animation loop
       const animate = () => {
         requestAnimationFrame(animate);
+        controls.update();
         renderer.render(scene, camera);
       };
       animate();
@@ -97,7 +97,7 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
           containerRef.current.removeChild(renderer.domElement);
         }
         // Dispose of geometries and materials
-        Object.values(joints).flat().forEach(joint => {
+        Object.values(jointsRef.current).flat().forEach(joint => {
           if (joint.geometry) joint.geometry.dispose();
           if (joint.material) joint.material.dispose();
         });
@@ -108,33 +108,26 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
   }, []);
 
   useEffect(() => {
-    if (signData && avatarRef.current) {
-      console.log('SignLanguageAvatar: Updating animation with new sign data');
-      // Reset animation state when sign data changes
-      animationStateRef.current = {
-        startTime: null,
-        pauseTime: null,
-        totalPausedTime: 0
-      };
-      
-      if (isPlaying) {
-        animateSign(signData);
-      }
+    if (!signData) {
+      console.warn('No sign data provided');
+      return;
+    }
+
+    if (!signData.keyframes || !Array.isArray(signData.keyframes)) {
+      console.error('Invalid keyframes data:', signData);
+      return;
+    }
+
+    console.log('Starting animation with data:', {
+      frames: signData.keyframes.length,
+      duration: signData.duration,
+      fps: signData.fps
+    });
+
+    if (isPlaying) {
+      animateSign(signData);
     }
   }, [signData, isPlaying]);
-
-  useEffect(() => {
-    if (!isPlaying) {
-      if (animationStateRef.current.startTime && !animationStateRef.current.pauseTime) {
-        animationStateRef.current.pauseTime = performance.now();
-      }
-    } else {
-      if (animationStateRef.current.pauseTime) {
-        animationStateRef.current.totalPausedTime += performance.now() - animationStateRef.current.pauseTime;
-        animationStateRef.current.pauseTime = null;
-      }
-    }
-  }, [isPlaying]);
 
   const createJoint = (radius = 0.02, color = 0xff0000) => {
     const geometry = new THREE.SphereGeometry(radius, 8, 8);
@@ -222,53 +215,50 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
   };
 
   const updateJoints = (frame) => {
-    if (!frame) {
-      console.error('Invalid frame data');
+    if (!frame || !frame.left_hand || !frame.right_hand || !frame.pose) {
+      console.error('Invalid frame data:', frame);
       return;
     }
 
     try {
-      // Scale factor to make the avatar more visible
-      const scale = 2;
-      const yOffset = 1; // Offset to center the avatar vertically
+      const scale = 0.5;  // Reduced scale to make movements more visible
+      const yOffset = 1;  // Offset to center the avatar
 
-      // Function to update a joint position
-      const updateJointPosition = (joint, position) => {
-        if (joint && Array.isArray(position) && position.length >= 3) {
+      // Update left hand
+      frame.left_hand.forEach((pos, i) => {
+        const joint = jointsRef.current.leftHand[i];
+        if (joint && Array.isArray(pos) && pos.length === 3) {
           joint.position.set(
-            position[0] * scale,
-            position[1] * scale + yOffset,
-            position[2] * scale
+            pos[0] * scale - 0.3,  // Offset to the left
+            pos[1] * scale + yOffset,
+            pos[2] * scale
           );
         }
-      };
+      });
 
-      // Update left hand joints
-      if (Array.isArray(frame.left_hand)) {
-        frame.left_hand.forEach((pos, i) => {
-          if (i < jointsRef.current.leftHand.length) {
-            updateJointPosition(jointsRef.current.leftHand[i], pos);
-          }
-        });
-      }
+      // Update right hand
+      frame.right_hand.forEach((pos, i) => {
+        const joint = jointsRef.current.rightHand[i];
+        if (joint && Array.isArray(pos) && pos.length === 3) {
+          joint.position.set(
+            pos[0] * scale + 0.3,  // Offset to the right
+            pos[1] * scale + yOffset,
+            pos[2] * scale
+          );
+        }
+      });
 
-      // Update right hand joints
-      if (Array.isArray(frame.right_hand)) {
-        frame.right_hand.forEach((pos, i) => {
-          if (i < jointsRef.current.rightHand.length) {
-            updateJointPosition(jointsRef.current.rightHand[i], pos);
-          }
-        });
-      }
-
-      // Update pose joints
-      if (Array.isArray(frame.pose)) {
-        frame.pose.forEach((pos, i) => {
-          if (i < jointsRef.current.pose.length) {
-            updateJointPosition(jointsRef.current.pose[i], pos);
-          }
-        });
-      }
+      // Update pose
+      frame.pose.forEach((pos, i) => {
+        const joint = jointsRef.current.pose[i];
+        if (joint && Array.isArray(pos) && pos.length === 3) {
+          joint.position.set(
+            pos[0] * scale,
+            pos[1] * scale + yOffset,
+            pos[2] * scale
+          );
+        }
+      });
     } catch (error) {
       console.error('Error updating joints:', error);
     }
@@ -276,12 +266,17 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
 
   const animateSign = (data) => {
     if (!data || !data.keyframes || data.keyframes.length === 0) {
-      console.error('Invalid animation data:', data);
+      console.error('Invalid animation data');
       return;
     }
 
-    console.log('Animating sign with frames:', data.keyframes.length);
-    
+    // Reset animation state
+    animationStateRef.current = {
+      startTime: null,
+      pauseTime: null,
+      totalPausedTime: 0
+    };
+
     const animate = (currentTime) => {
       if (!animationStateRef.current.startTime) {
         animationStateRef.current.startTime = currentTime;
@@ -294,19 +289,19 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
 
       const effectiveTime = currentTime - animationStateRef.current.totalPausedTime;
       const elapsed = effectiveTime - animationStateRef.current.startTime;
-      const progress = Math.min(elapsed / (data.duration * 1000), 1);
-      
-      // Find current and next keyframe
+      const duration = data.duration * 1000; // Convert to milliseconds
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Find the current frame
       const frameIndex = Math.min(
-        Math.floor(progress * (data.keyframes.length - 1)),
-        data.keyframes.length - 2
+        Math.floor(progress * data.keyframes.length),
+        data.keyframes.length - 1
       );
-      
-      const currentFrame = data.keyframes[frameIndex];
-      updateJoints(currentFrame);
+
+      // Update joints with current frame
+      updateJoints(data.keyframes[frameIndex]);
 
       if (progress >= 1) {
-        console.log('Animation complete');
         if (onAnimationComplete) {
           onAnimationComplete();
         }
@@ -319,7 +314,7 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-    
+
     animationRef.current = requestAnimationFrame(animate);
   };
 
@@ -329,7 +324,8 @@ const SignLanguageAvatar = ({ signData, onAnimationComplete, isPlaying }) => {
       style={{ 
         width: '300px', 
         height: '300px',
-        margin: 'auto'
+        margin: 'auto',
+        background: 'transparent'
       }}
     />
   );
