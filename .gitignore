@@ -44,7 +44,6 @@ build/
 Thumbs.db
 
 
-backend/models/*.pkl
 *.log
 chrome-extension/frontend/build/
 chrome-extension/frontend/dist/
