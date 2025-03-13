@@ -6,10 +6,12 @@
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "scripting",
+    "webRequest"
   ],
   "host_permissions": [
-    "*://*.youtube.com/*"
+    "*://*.youtube.com/*",
+    "http://localhost:*/*"
   ],
   "background": {
     "service_worker": "background.bundle.js"
@@ -26,18 +28,22 @@
     {
       "matches": ["*://*.youtube.com/*"],
       "js": ["content_script.bundle.js"],
-      "css": ["content_script.css"]
+      "css": ["content_script.css"],
+      "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": ["*.css", "*.js", "*.js.map", "icons/*"],
-      "matches": ["*://*.youtube.com/*"]
+      "matches": ["*://*.youtube.com/*", "http://localhost:*/*"]
     }
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:*"
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   }
-} 
+}

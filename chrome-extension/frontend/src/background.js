@@ -88,3 +88,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Always return true if you plan to respond asynchronously
   return true;
 });
+
+// Background script to handle API requests
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'API_REQUEST') {
+    console.log('Processing API request:', request.url);
+    
+    fetch(request.url, request.options)
+      .then(async response => {
+        // First check if the response is ok
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // For health check endpoint, we don't need JSON
+        if (request.url.endsWith('/')) {
+          return { message: 'Server is healthy' };
+        }
+
+        // Try to parse JSON for other endpoints
+        try {
+          return await response.json();
+        } catch (e) {
+          console.error('Failed to parse JSON:', e);
+          throw new Error('Invalid JSON response from server');
+        }
+      })
+      .then(data => {
+        console.log('API request successful:', request.url);
+        sendResponse({ success: true, data });
+      })
+      .catch(error => {
+        console.error('API request failed:', error);
+        sendResponse({ 
+          success: false, 
+          error: error.message || 'Failed to connect to server'
+        });
+      });
+    return true; // Will respond asynchronously
+  }
+});

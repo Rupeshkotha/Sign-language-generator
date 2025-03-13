@@ -25,10 +25,21 @@ const Popup = () => {
   const checkBackendConnection = async () => {
     try {
       console.log('Checking backend connection...');
-      const response = await fetch('http://localhost:5000/');
-      if (!response.ok) {
-        throw new Error('Backend server is not responding');
+      const response = await chrome.runtime.sendMessage({
+        type: 'API_REQUEST',
+        url: 'http://localhost:5000/',
+        options: {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Backend server is not responding');
       }
+
       console.log('Backend connection successful');
       setIsConnected(true);
       setError(null);

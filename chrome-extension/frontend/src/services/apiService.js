@@ -2,44 +2,102 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000';
 
+// Helper function to make API requests through background script
+const makeRequest = async (url, options) => {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'API_REQUEST',
+      url,
+      options
+    });
+
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+};
+
+// Helper function to check server health
+const checkServerHealth = async () => {
+  try {
+    const data = await makeRequest(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    console.log('Backend health status:', data);
+    return data.status === 'healthy';
+  } catch (error) {
+    console.error('Server health check failed:', error);
+    return false;
+  }
+};
+
 export const extractWords = async (videoUrl) => {
   try {
+    // Check server health first
+    const isServerHealthy = await checkServerHealth();
+    if (!isServerHealthy) {
+      throw new Error('Backend server is not accessible. Please ensure the server is running.');
+    }
+
     console.log('Extracting words for video:', videoUrl);
-    const response = await fetch('http://localhost:5000/extract_words', {
+    const data = await makeRequest(`${API_BASE_URL}/get_sign`, {
       method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify({ video_url: videoUrl })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to extract words');
-    }
-
-    const data = await response.json();
-    console.log('Extracted words:', data);
+    console.log('Server response:', data);
     
-    if (!data.words || !Array.isArray(data.words)) {
+    // Extract words from the response data
+    if (data.data && Array.isArray(data.data)) {
+      const words = data.data.map(item => item.word);
+      console.log('Extracted words:', words);
+      return words;
+    } else if (data.error) {
+      throw new Error(data.error);
+    } else {
+      console.error('Invalid response format:', data);
       throw new Error('Invalid response format: words array not found');
     }
-
-    return data.words;
   } catch (error) {
-    console.error('Error extracting words:', error);
+    console.error('Error extracting words:', {
+      message: error.message,
+      stack: error.stack,
+      videoUrl
+    });
     throw error;
   }
 };
 
 export const getSignLanguageVideos = async (words, quality = 'high') => {
   try {
+    // Check server health first
+    const isServerHealthy = await checkServerHealth();
+    if (!isServerHealthy) {
+      throw new Error('Backend server is not accessible. Please ensure the server is running.');
+    }
+
     console.log('Getting sign language videos for words:', words);
     
-    // Validate input
     if (!Array.isArray(words)) {
-      console.error('Words parameter must be an array:', words);
-      return [];
+      console.error('Invalid words parameter:', words);
+      throw new Error('Words parameter must be an array');
     }
 
     if (words.length === 0) {
@@ -47,53 +105,74 @@ export const getSignLanguageVideos = async (words, quality = 'high') => {
       return [];
     }
 
-    const response = await fetch('http://localhost:5000/get_sign_language_videos', {
+    const data = await makeRequest(`${API_BASE_URL}/get_sign_language_videos`, {
       method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({ 
-        words: words.filter(word => typeof word === 'string' && word.trim()),
-        quality 
-      })
+      body: JSON.stringify({ words, quality })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Error response from server:', errorData);
-      return [];
-    }
-
-    const data = await response.json().catch(error => {
-      console.error('Failed to parse response:', error);
-      return {};
-    });
-
-    console.log('Received sign language videos response:', data);
-    
-    if (!data || !data.sign_videos) {
-      console.warn('No sign_videos in response data');
-      return [];
-    }
-
-    if (!Array.isArray(data.sign_videos)) {
-      console.error('sign_videos is not an array:', data.sign_videos);
-      return [];
-    }
-
-    // Filter out invalid videos
-    const validVideos = data.sign_videos.filter(video => 
-      video && 
-      typeof video === 'object' && 
-      typeof video.url === 'string' && 
-      video.url.trim()
-    );
-
-    console.log('Valid videos found:', validVideos.length);
-    return validVideos;
+    return data.videos;
   } catch (error) {
-    console.error('Error getting sign language videos:', error);
-    return [];
+    console.error('Error getting sign language videos:', {
+      message: error.message,
+      stack: error.stack,
+      words
+    });
+    throw error;
+  }
+};
+
+export const getSignLanguage = async (videoUrl) => {
+  try {
+    // Check server health first
+    const isServerHealthy = await checkServerHealth();
+    if (!isServerHealthy) {
+      throw new Error('Backend server is not accessible. Please ensure the server is running.');
+    }
+
+    console.log('Getting sign language for video:', videoUrl);
+    const data = await makeRequest(`${API_BASE_URL}/get_sign`, {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ video_url: videoUrl })
+    });
+
+    // Log the response status
+    console.log('Response status:', data.status);
+    
+    if (!data.success) {
+      const errorData = data.error;
+      console.error('Server response error:', {
+        error: errorData
+      });
+      throw new Error(errorData || `Server error`);
+    }
+
+    console.log('Backend response:', data);
+
+    // Validate the response structure
+    if (!data.success || !Array.isArray(data.data)) {
+      console.error('Invalid response format:', data);
+      throw new Error('Invalid response format from backend');
+    }
+
+    return data.data;
+  } catch (error) {
+    console.error('Error in getSignLanguage:', {
+      message: error.message,
+      stack: error.stack,
+      videoUrl
+    });
+    throw error;
   }
 };

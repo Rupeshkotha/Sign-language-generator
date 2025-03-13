@@ -1,14 +1,22 @@
-# backend/app.py
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from models.inference import SignLanguageInference
+from utils.word_extractor import WordExtractor
 import os
 import time
 import traceback
 import logging
+import json
 
 app = Flask(__name__)
-CORS(app)
+# Enable CORS for all routes with proper configuration
+CORS(app, resources={
+    r"/*": {
+        "origins": ["chrome-extension://*", "http://localhost:*"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Accept"]
+    }
+})
 
 print("Starting Sign Language Translation Server...")
 
@@ -19,13 +27,27 @@ logger = logging.getLogger(__name__)
 @app.before_request
 def log_request_info():
     """Log details about every incoming request"""
-    logger.info('Headers: %s', dict(request.headers))
-    logger.info('Body: %s', request.get_data())
-    logger.info('URL: %s %s', request.method, request.url)
+    if request.method != 'OPTIONS':  # Don't log CORS preflight requests
+        logger.info('Headers: %s', dict(request.headers))
+        logger.info('Body: %s', request.get_data())
+        logger.info('URL: %s %s', request.method, request.url)
+
+@app.errorhandler(Exception)
+def handle_error(error):
+    """Global error handler to ensure consistent error responses"""
+    logger.error(f"Error handling request: {str(error)}")
+    logger.error(traceback.format_exc())
+    
+    status_code = getattr(error, 'code', 500)
+    return jsonify({
+        "error": str(error),
+        "status": "error",
+        "timestamp": time.time()
+    }), status_code
 
 # Model paths - using absolute paths to ensure correct file location
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
-MODEL_PATH = os.path.join(MODEL_DIR, 'sign_language_model_chunk_167.pt')  # Updated to use PyTorch model
+MODEL_PATH = os.path.join(MODEL_DIR, 'sign_language_model_final.pt')  # Updated to use PyTorch model
 WORD_TO_ID_PATH = os.path.join(MODEL_DIR, 'word_to_id.json')
 WORD_EMBEDDINGS_PATH = os.path.join(MODEL_DIR, 'word_embeddings.pkl')
 
@@ -52,63 +74,136 @@ except Exception as e:
     sign_generator = None
     components_healthy = False
 
-@app.route('/', methods=['GET'])
+@app.route('/')
+def root():
+    """Root endpoint providing API status information"""
+    try:
+        # Check if sign generator is available
+        model_status = "healthy" if sign_generator else "unavailable"
+        vocab_size = len(sign_generator.vocabulary) if sign_generator else 0
+        
+        return jsonify({
+            "status": "online",
+            "api_version": "1.0.0",
+            "model_status": model_status,
+            "vocabulary_size": vocab_size,
+            "endpoints": {
+                "GET /": "API status (this endpoint)",
+                "GET /health": "Detailed health check",
+                "POST /get_sign": "Generate sign language keyframes for a word",
+                "POST /translate_text": "Translate text to sign language",
+                "GET /vocabulary": "List available words"
+            },
+            "timestamp": time.time()
+        })
+    except Exception as e:
+        logger.error(f"Error in root endpoint: {str(e)}")
+        return jsonify({
+            "status": "degraded",
+            "error": str(e),
+            "timestamp": time.time()
+        }), 500
+
+@app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify({
-        "status": "healthy" if components_healthy else "error",
-        "message": "Sign Language Translation API",
-        "timestamp": time.time(),
-        "vocab_size": len(sign_generator.vocabulary) if components_healthy else 0
-    })
+    try:
+        if not components_healthy:
+            return jsonify({
+                "status": "error",
+                "message": "Sign Language Translation API - Components Unhealthy",
+                "timestamp": time.time(),
+                "vocab_size": 0
+            }), 503
+            
+        vocab_size = len(sign_generator.vocabulary) if sign_generator else 0
+        return jsonify({
+            "status": "healthy",
+            "message": "Sign Language Translation API",
+            "timestamp": time.time(),
+            "vocab_size": vocab_size,
+            "components": {
+                "sign_generator": "healthy" if sign_generator else "error",
+                "word_extractor": "healthy"
+            }
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "timestamp": time.time()
+        }), 503
 
 @app.route('/get_sign', methods=['POST'])
 def get_sign():
-    """Get sign language animation for a single word"""
-    if not request.is_json:
-        return jsonify({"error": "Request must be JSON"}), 400
-
-    word = request.json.get('word')
-    if not word:
-        return jsonify({"error": "No word provided"}), 400
-
+    """Generate sign language keyframes for a word or video URL"""
     try:
-        if not sign_generator:
-            return jsonify({"error": "Sign generator not available"}), 503
+        data = request.get_json()
+        if not data:
+            raise ValueError("No JSON data provided")
 
-        # Generate keypoints for the word
-        result = sign_generator.generate_keypoints(word)
+        # Log request data
+        logger.info(f"Received request data: {data}")
         
-        # Validate result structure
-        if not result or 'keyframes' not in result:
-            return jsonify({"error": f"Invalid keypoint structure generated for word '{word}'"}), 500
-            
-        # Validate keyframes
-        for i, frame in enumerate(result['keyframes']):
-            if not all(k in frame for k in ['left_hand', 'right_hand', 'pose', 'timestamp']):
-                return jsonify({"error": f"Missing required keypoints in frame {i} for word '{word}'"}), 500
+        if 'word' in data:
+            word = data['word'].strip().lower()
+            if not word:
+                raise ValueError("Empty word provided")
                 
-            # Validate point counts
-            if len(frame['left_hand']) != 21 or len(frame['right_hand']) != 21 or len(frame['pose']) != 33:
-                return jsonify({
-                    "error": f"Invalid number of keypoints in frame {i} for word '{word}'",
-                    "details": {
-                        "left_hand": len(frame['left_hand']),
-                        "right_hand": len(frame['right_hand']),
-                        "pose": len(frame['pose'])
-                    }
-                }), 500
-
-        return jsonify({
-            "success": True,
-            "word": word,
-            "sign": result
-        })
+            # Generate sign data for single word
+            sign_data = sign_generator.generate_keypoints(word)
+            if not sign_data:
+                raise ValueError(f"Could not generate sign data for word: {word}")
+                
+            return jsonify({
+                "success": True,
+                "data": {
+                    "word": word,
+                    "keyframes": sign_data["keyframes"],
+                    "duration": sign_data["duration"],
+                    "fps": sign_data.get("fps", 30)
+                }
+            })
+            
+        elif 'video_url' in data:
+            video_url = data['video_url']
+            if not video_url:
+                raise ValueError("Empty video URL provided")
+                
+            # Extract words from video
+            word_data = word_extractor.extract_words(video_url)
+            if not word_data or not word_data.get('words'):
+                raise ValueError(f"Could not extract words from video: {video_url}")
+                
+            # Generate sign data for each word
+            results = []
+            for word in word_data['words']:
+                sign_data = sign_generator.generate_keypoints(word)
+                if sign_data:
+                    results.append({
+                        "word": word,
+                        "keyframes": sign_data["keyframes"],
+                        "duration": sign_data["duration"],
+                        "fps": sign_data.get("fps", 30)
+                    })
+            
+            return jsonify({
+                "success": True,
+                "data": results,
+                "timestamps": word_data.get('timestamps', [])
+            })
+            
+        else:
+            raise ValueError("Request must include either 'word' or 'video_url'")
+            
     except Exception as e:
-        print(f"Error in get_sign for word '{word}': {str(e)}")
-        print("Full traceback:")
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error in get_sign: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
 
 @app.route('/translate_text', methods=['POST'])
 def translate_text():
@@ -151,7 +246,14 @@ def translate_text():
                         break
                         
                 if valid:
-                    results.append(result)
+                    # Format the result to match frontend expectations
+                    formatted_result = {
+                        "word": word,
+                        "keyframes": result['keyframes'],
+                        "fps": result['fps'],
+                        "duration": result['duration']
+                    }
+                    results.append(formatted_result)
                     
             except Exception as e:
                 print(f"Error generating keypoints for word '{word}': {str(e)}")

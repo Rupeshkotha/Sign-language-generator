@@ -191,26 +191,45 @@ class SignLanguageInference:
     def generate_keypoints(self, word: str) -> dict:
         """Generate sign language keypoints for a word"""
         try:
-            # Get word embedding
-            embedding = self.get_word_embedding(word)
-            embedding = torch.tensor(embedding, dtype=torch.float32).unsqueeze(0).to(self.device)  # Add batch dimension
+            # Clean and validate the word
+            word = word.strip().lower()
+            if not word or not word.isalpha():
+                raise ValueError(f"Invalid word format: '{word}'. Words must contain only letters.")
             
-            # Generate keypoints
+            if len(word) < 2:
+                raise ValueError(f"Word '{word}' is too short. Minimum length is 2 characters.")
+            
+            # Check if word exists in vocabulary
+            if word not in self.vocabulary:
+                print(f"Generating new BERT embedding for unknown word: '{word}'")
+                embedding = self.get_word_embedding(word)
+                embedding_magnitude = float(np.linalg.norm(embedding))
+                print(f"BERT embedding magnitude: {embedding_magnitude:.3f} -> normalized to: {7.0:.3f}")
+            else:
+                print(f"Using pre-computed embedding for word: '{word}'")
+                embedding = self.word_embeddings[self.word_to_id[word]]
+            
+            # Generate keypoints using the model
             with torch.no_grad():
-                keypoints = self.model(embedding)[0].cpu().numpy()  # Remove batch dimension
-                
+                embedding_tensor = torch.tensor(embedding).float().unsqueeze(0)
+                keypoints = self.model(embedding_tensor)
+                keypoints = keypoints.squeeze().numpy()
+            
             # Scale keypoints to fit within expected range
             keypoints = self.scale_keypoints(keypoints)
             
+            # Only log the shape and range, not the raw array
+            print(f"Generated keypoints for word '{word}' with shape {keypoints.shape}")
+            print(f"Value range: min={np.min(keypoints):.3f}, max={np.max(keypoints):.3f}")
+
             # Validate keypoints
             if not self.validate_keypoints(keypoints):
                 print(f"Warning: Generated invalid keypoints for word '{word}'")
-                # Attempt to clamp values to valid range as a fallback
                 keypoints = np.clip(keypoints, -0.3, 0.3)
-            
+
             # Convert to the expected format
             frames = []
-            
+                
             for i in range(NUM_FRAMES):
                 frame_data = keypoints[i]
                 
@@ -219,22 +238,55 @@ class SignLanguageInference:
                 right_hand = frame_data[NUM_HAND_LANDMARKS*3:NUM_HAND_LANDMARKS*6].reshape(-1, 3)
                 pose = frame_data[NUM_HAND_LANDMARKS*6:].reshape(-1, 3)
                 
+                # Scale and normalize coordinates to match frontend expectations
+                def normalize_coordinates(points):
+                    # Convert to list of [x, y, z] coordinates and ensure proper scaling
+                    return [[float(x), float(y), float(z)] for x, y, z in points]
+                
                 frame = {
-                    'timestamp': i / 30.0,  # Assuming 30 fps
-                    'left_hand': left_hand.tolist(),
-                    'right_hand': right_hand.tolist(),
-                    'pose': pose.tolist(),
-                    'confidence': 1.0  # This is a generated frame
+                    'timestamp': float(i / 30.0),  # Ensure timestamp is float
+                    'left_hand': normalize_coordinates(left_hand),
+                    'right_hand': normalize_coordinates(right_hand),
+                    'pose': normalize_coordinates(pose)
                 }
                 frames.append(frame)
             
-            return {
-                'word': word,
+            # Ensure all numeric values are proper floats
+            result = {
+                'word': str(word),  # Ensure word is string
                 'keyframes': frames,
-                'fps': 30.0,
-                'duration': NUM_FRAMES / 30.0,
-                'confidence': 1.0
+                'fps': 30.0,  # Ensure fps is float
+                'duration': float(NUM_FRAMES / 30.0),  # Ensure duration is float
+                'source': 'generated'  # Add source information
             }
+            
+            # Log a sample of the formatted keypoints
+            if frames:
+                print(f"Keypoint structure for word '{word}':")
+                print(f"- Total frames: {len(frames)}")
+                print(f"- Frame points: {len(frames[0]['left_hand'])} left hand, {len(frames[0]['right_hand'])} right hand, {len(frames[0]['pose'])} pose")
+                print(f"- Duration: {result['duration']:.2f}s at {result['fps']} fps")
+            
+            # Validate the output format
+            try:
+                # Verify all keyframes have correct structure
+                for frame in result['keyframes']:
+                    assert len(frame['left_hand']) == NUM_HAND_LANDMARKS, f"Left hand has {len(frame['left_hand'])} points, expected {NUM_HAND_LANDMARKS}"
+                    assert len(frame['right_hand']) == NUM_HAND_LANDMARKS, f"Right hand has {len(frame['right_hand'])} points, expected {NUM_HAND_LANDMARKS}"
+                    assert len(frame['pose']) == NUM_POSE_LANDMARKS, f"Pose has {len(frame['pose'])} points, expected {NUM_POSE_LANDMARKS}"
+                    
+                    # Verify coordinate format
+                    for points in [frame['left_hand'], frame['right_hand'], frame['pose']]:
+                        for point in points:
+                            assert len(point) == 3, f"Point should have 3 coordinates, got {len(point)}"
+                            assert all(isinstance(x, float) for x in point), "All coordinates must be floats"
+                
+                print(f"Successfully validated keypoint format for word '{word}'")
+                return result
+                
+            except AssertionError as e:
+                print(f"Error in keypoint format: {str(e)}")
+                raise ValueError(f"Invalid keypoint format: {str(e)}")
         except Exception as e:
             print(f"Error generating keypoints for word '{word}': {str(e)}")
             raise

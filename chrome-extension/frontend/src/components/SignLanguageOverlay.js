@@ -1,115 +1,137 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import SignLanguageAvatar from './SignLanguageAvatar';
 import '../styles/SignLanguageOverlay.css';
 
-const SignLanguageOverlay = ({ signData, mainVideoElement, isEnabled }) => {
-  const [currentSignIndex, setCurrentSignIndex] = useState(0);
+const SignLanguageOverlay = ({ signData, mainVideoElement, isEnabled, currentWord }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentWord, setCurrentWord] = useState('');
-  
+  const animationFrameRef = useRef(null);
+  const lastRenderTime = useRef(0);
+  const avatarRef = useRef(null);
+  const currentSignStartTime = useRef(0);
+
   useEffect(() => {
-    console.log('SignLanguageOverlay: Mounted with props:', { 
-      hasSignData: !!signData, 
+    console.log('SignLanguageOverlay: Mounted with props:', {
+      hasSignData: !!signData,
       hasMainVideo: !!mainVideoElement,
       isEnabled,
-      signDataLength: signData?.length,
-      firstSignSample: signData?.[0]
+      currentWord
     });
-    
-    if (mainVideoElement) {
-      const handleMainVideoPlay = () => {
-        console.log('SignLanguageOverlay: Main video play event');
-        setIsPlaying(true);
-      };
-      
-      const handleMainVideoPause = () => {
-        console.log('SignLanguageOverlay: Main video pause event');
-        setIsPlaying(false);
-      };
-      
-      mainVideoElement.addEventListener('play', handleMainVideoPlay);
-      mainVideoElement.addEventListener('pause', handleMainVideoPause);
-      
-      return () => {
-        mainVideoElement.removeEventListener('play', handleMainVideoPlay);
-        mainVideoElement.removeEventListener('pause', handleMainVideoPause);
-      };
+
+    if (!signData || !mainVideoElement) {
+      return;
     }
+
+    const handleMainVideoPlay = () => {
+      console.log('Main video play event');
+      setIsPlaying(true);
+      if (avatarRef.current) {
+        startAnimation();
+      }
+    };
+
+    const handleMainVideoPause = () => {
+      console.log('Main video pause event');
+      setIsPlaying(false);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      // Update sign language based on video time
+      if (signData.timestamps && signData.timestamps.length > 0) {
+        const currentTime = mainVideoElement.currentTime;
+        const currentWordIndex = signData.timestamps.findIndex((timestamp, index) => {
+          const nextTimestamp = signData.timestamps[index + 1];
+          return currentTime >= timestamp && (!nextTimestamp || currentTime < nextTimestamp);
+        });
+
+        if (currentWordIndex !== -1 && currentWordIndex < signData.data.length) {
+          const currentSignData = signData.data[currentWordIndex];
+          if (currentSignStartTime.current !== signData.timestamps[currentWordIndex]) {
+            currentSignStartTime.current = signData.timestamps[currentWordIndex];
+            console.log('Switching to word:', currentSignData.word);
+          }
+        }
+      }
+    };
+
+    mainVideoElement.addEventListener('play', handleMainVideoPlay);
+    mainVideoElement.addEventListener('pause', handleMainVideoPause);
+    mainVideoElement.addEventListener('timeupdate', handleTimeUpdate);
+
+    return () => {
+      mainVideoElement.removeEventListener('play', handleMainVideoPlay);
+      mainVideoElement.removeEventListener('pause', handleMainVideoPause);
+      mainVideoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, [mainVideoElement, signData]);
 
-  useEffect(() => {
-    if (signData && signData[currentSignIndex]) {
-      console.log('Setting current word:', signData[currentSignIndex].word);
-      setCurrentWord(signData[currentSignIndex].word);
-    }
-  }, [signData, currentSignIndex]);
-
-  const transformKeypoints = (keypoints) => {
-    console.log('Raw keypoints data:', keypoints);
-    
-    // Check if keypoints is defined
-    if (!keypoints || !keypoints.keyframes) {
-        console.error('Invalid keypoint data structure:', keypoints);
-        return null;
+  const startAnimation = () => {
+    if (!signData || !signData.data || !isPlaying) {
+      return;
     }
 
-    try {
-        const transformedData = {
-            duration: keypoints.duration || 3.0, // Default duration if not provided
-            fps: keypoints.fps || 30, // Default fps if not provided
-            keyframes: keypoints.keyframes.map(frame => ({
-                left_hand: frame.left_hand || [],
-                right_hand: frame.right_hand || [],
-                pose: frame.pose || [],
-                timestamp: frame.timestamp || 0
-            }))
-        };
+    const animate = (currentTime) => {
+      if (!isPlaying) return;
 
-        console.log('Transformed keypoints data:', transformedData);
-        return transformedData;
-    } catch (error) {
-        console.error('Error transforming keypoints:', error);
-        return null;
-    }
-};
-  
-  const handleAnimationComplete = () => {
-    console.log('SignLanguageOverlay: Animation complete');
-    if (currentSignIndex < (signData?.length || 0) - 1) {
-      setCurrentSignIndex(currentSignIndex + 1);
-    } else {
-      // Reset to first sign if we've shown all signs
-      setCurrentSignIndex(0);
-    }
+      const deltaTime = currentTime - lastRenderTime.current;
+      lastRenderTime.current = currentTime;
+
+      // Get current video time and find corresponding sign data
+      const videoTime = mainVideoElement.currentTime;
+      let currentSignData = null;
+      let currentTimestamp = 0;
+
+      if (signData.timestamps && signData.timestamps.length > 0) {
+        const currentIndex = signData.timestamps.findIndex((timestamp, index) => {
+          const nextTimestamp = signData.timestamps[index + 1];
+          return videoTime >= timestamp && (!nextTimestamp || videoTime < nextTimestamp);
+        });
+
+        if (currentIndex !== -1 && currentIndex < signData.data.length) {
+          currentSignData = signData.data[currentIndex];
+          currentTimestamp = signData.timestamps[currentIndex];
+        }
+      }
+
+      if (currentSignData) {
+        // Calculate progress within current sign
+        const signDuration = currentSignData.duration || 1.0;
+        const timeSinceStart = videoTime - currentTimestamp;
+        const progress = (timeSinceStart % signDuration) / signDuration;
+        
+        // Get frame based on progress
+        const frameIndex = Math.min(
+          Math.floor(progress * currentSignData.keyframes.length),
+          currentSignData.keyframes.length - 1
+        );
+
+        // Update avatar pose
+        if (avatarRef.current) {
+          avatarRef.current.updatePose(currentSignData.keyframes[frameIndex]);
+        }
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    lastRenderTime.current = performance.now();
+    animationFrameRef.current = requestAnimationFrame(animate);
   };
 
   if (!isEnabled) {
-    console.log('SignLanguageOverlay: Translation disabled');
     return null;
   }
 
-  if (!signData || !Array.isArray(signData) || signData.length === 0) {
-    console.log('SignLanguageOverlay: No sign data available');
+  if (!signData) {
     return (
       <div className="sign-language-overlay">
         <div className="loading-placeholder">
-          Processing sign language...
-        </div>
-      </div>
-    );
-  }
-
-  const currentSign = signData[currentSignIndex];
-  console.log('Current sign data:', currentSign);
-  
-  const transformedSignData = transformKeypoints(currentSign?.keypoints);
-  console.log('Transformed sign data available:', !!transformedSignData);
-
-  if (!transformedSignData) {
-    return (
-      <div className="sign-language-overlay">
-        <div className="loading-placeholder">
-          Invalid keypoint data received. Please try again.
+          Waiting for captions...
         </div>
       </div>
     );
@@ -119,22 +141,15 @@ const SignLanguageOverlay = ({ signData, mainVideoElement, isEnabled }) => {
     <div className="sign-language-overlay">
       <div className="avatar-container">
         <SignLanguageAvatar
-          signData={transformedSignData}
-          onAnimationComplete={handleAnimationComplete}
+          ref={avatarRef}
+          signData={signData}
           isPlaying={isPlaying}
         />
       </div>
-      
       <div className="sign-info">
         <div className="word-display">
           <span className="word-label">Current word:</span>
-          <span className="word-text">{currentWord}</span>
-        </div>
-        
-        <div className="progress-info">
-          <span className="progress-text">
-            Sign {currentSignIndex + 1} of {signData.length}
-          </span>
+          <span className="word-text">{currentWord || 'Waiting...'}</span>
         </div>
       </div>
     </div>
