@@ -1,4 +1,3 @@
-
 __pycache__/
 *.py[cod]
 *$py.class
@@ -51,4 +50,8 @@ chrome-extension/frontend/dist/
 *.tmp
 *.temp
 .coverage
-htmlcov/ 
+htmlcov/
+
+# 3D Models
+*.glb
+chrome-extension/frontend/public/models/Ch33_nonPBR.glb 

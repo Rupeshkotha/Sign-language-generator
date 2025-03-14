@@ -68,14 +68,29 @@ module.exports = {
         {
           from: path.resolve(__dirname, 'icons'),
           to: path.resolve(__dirname, 'build/icons')
+        },
+        {
+          from: 'public/models',
+          to: 'models'
         }
       ]
     })
   ],
   resolve: {
-    extensions: ['.js', '.jsx']
+    extensions: ['.js', '.jsx'],
+    alias: {
+      'three': path.resolve('./node_modules/three')
+    }
   },
   optimization: {
-    splitChunks: false // Disable code splitting completely
+    splitChunks: {
+      cacheGroups: {
+        threejs: {
+          test: /[\\/]node_modules[\\/](three|@react-three)[\\/]/,
+          name: 'threejs',
+          chunks: 'all',
+        }
+      }
+    }
   }
 };

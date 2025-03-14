@@ -1,61 +1,337 @@
 /* SignLanguageOverlay.css */
 .sign-language-overlay {
   position: fixed;
-  top: 20px;
+  top: 80px;
   right: 20px;
-  width: 300px;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 10px;
-  padding: 15px;
+  width: 400px;
+  height: 450px;
+  background: #000000;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  z-index: 9999999;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.overlay-title {
   color: white;
-  z-index: 10000;
-  font-family: Arial, sans-serif;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.overlay-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.control-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.control-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.overlay-content {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.canvas-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+}
+
+.canvas-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.error-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ff4444;
+  text-align: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 4px;
+}
+
+.current-word {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.sign-language-overlay.minimized {
+  width: 180px;
+  height: 40px;
+}
+
+.sign-language-overlay.minimized .overlay-content {
+  display: none;
+}
+
+.sign-language-overlay.minimized {
+  width: 60px;
+  height: 60px;
+  bottom: 20px;
+  right: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.sign-language-overlay .overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: auto;
+}
+
+.sign-language-overlay .overlay-title {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.sign-language-overlay .overlay-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.sign-language-overlay .control-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  pointer-events: auto;
+}
+
+.sign-language-overlay .control-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sign-language-overlay .overlay-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  pointer-events: auto;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sign-language-overlay .canvas-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  pointer-events: auto;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sign-language-overlay .canvas-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  outline: none;
+  background: transparent;
+  display: block;
+}
+
+.sign-language-overlay .loading-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 14px;
+}
+
+.sign-language-overlay .error-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ff4444;
+  text-align: center;
+  padding: 12px;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+}
+
+.sign-language-overlay .current-word {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sign-language-overlay {
+  position: fixed;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  z-index: 1000;
+  transition: all 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.overlay-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  user-select: none;
+}
+
+.overlay-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.control-button {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.control-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.control-button.close:hover {
+  background: rgba(255, 0, 0, 0.15);
+  color: #ff4444;
 }
 
 .avatar-container {
-  width: 300px;
-  height: 300px;
-  margin-bottom: 10px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 5px;
+  margin-top: 10px;
   display: flex;
   justify-content: center;
-  align-items: center;
+  width: 100%;
+  height: 240px;
+  background: rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.avatar-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  outline: none;
 }
 
 .sign-info {
-  padding: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .word-display {
-  margin-bottom: 10px;
+  margin-top: 10px;
+  font-size: 1.2em;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-height: 24px;
 }
 
 .word-label {
-  font-size: 14px;
-  color: #ccc;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
 }
 
 .word-text {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: capitalize;
 }
 
 .progress-info {
   font-size: 12px;
-  color: #ccc;
-}
-
-.loading-placeholder {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100px;
-  font-size: 14px;
   color: #ccc;
 }
 
@@ -98,24 +374,62 @@
   display: block;
 }
 
-.sign-language-error {
-  color: white;
-  text-align: center;
+.loading-placeholder {
   padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  min-height: 100px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-placeholder p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sign-language-error {
+  padding: 16px;
+  text-align: center;
+  color: #ff4444;
+  background: rgba(255, 0, 0, 0.1);
+  margin: 12px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .sign-language-error button {
   margin-top: 10px;
-  padding: 8px 16px;
-  background: #4a90e2;
+  padding: 6px 12px;
+  background: #2196f3;
   border: none;
   border-radius: 4px;
   color: white;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 500;
   transition: background-color 0.2s;
 }
 
 .sign-language-error button:hover {
-  background: #357abd;
+  background: #1976d2;
 }

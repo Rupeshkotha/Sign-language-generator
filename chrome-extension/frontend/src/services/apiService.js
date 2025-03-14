@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://192.168.29.137:5000';
 
 // Helper function to make API requests through background script
 const makeRequest = async (url, options) => {
@@ -63,6 +63,7 @@ export const extractWords = async (videoUrl) => {
     });
 
     console.log('Server response:', data);
+    console.log('Response data:', data);
     
     // Extract words from the response data
     if (data.data && Array.isArray(data.data)) {
@@ -116,6 +117,9 @@ export const getSignLanguageVideos = async (words, quality = 'high') => {
       body: JSON.stringify({ words, quality })
     });
 
+    console.log('Server response:', data);
+    console.log('Response data:', data);
+    
     return data.videos;
   } catch (error) {
     console.error('Error getting sign language videos:', {
@@ -147,6 +151,9 @@ export const getSignLanguage = async (videoUrl) => {
       body: JSON.stringify({ video_url: videoUrl })
     });
 
+    console.log('Server response:', data);
+    console.log('Response data:', data);
+    
     // Log the response status
     console.log('Response status:', data.status);
     

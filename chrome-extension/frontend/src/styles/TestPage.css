@@ -1,0 +1,47 @@
+.test-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.test-page h1 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.test-page p {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.sign-language-test {
+  background: #f5f5f5;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.test-controls {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.test-controls button {
+  padding: 8px 16px;
+  background: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.test-controls button:hover {
+  background: #357abd;
+}
+
+.test-controls button:active {
+  background: #2d6da3;
+} 
