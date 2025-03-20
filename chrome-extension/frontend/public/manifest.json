@@ -13,7 +13,8 @@
     "*://*.youtube.com/*",
     "*://youtube.com/*",
     "http://localhost:*/*",
-    "http://127.0.0.1:*/*"
+    "http://127.0.0.1:*/*",
+    "http://192.168.29.137:*/*"
   ],
   "background": {
     "service_worker": "background.bundle.js",
@@ -27,31 +28,28 @@
       "128": "icons/icon128.png"
     }
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "*://*.youtube.com/*",
-        "*://youtube.com/*"
-      ],
-      "js": ["content_script.bundle.js"],
-      "css": ["content_script.css"],
-      "run_at": "document_end",
-      "all_frames": false
-    }
-  ],
   "web_accessible_resources": [
     {
-      "resources": ["*.css", "*.js", "*.js.map", "icons/*", "models/*"],
+      "resources": [
+        "content_script.bundle.js",
+        "content_script.css",
+        "*.js",
+        "*.css",
+        "*.js.map",
+        "icons/*",
+        "models/*"
+      ],
       "matches": [
         "*://*.youtube.com/*",
         "*://youtube.com/*",
         "http://localhost:*/*",
-        "http://127.0.0.1:*/*"
+        "http://127.0.0.1:*/*",
+        "http://192.168.29.137:*/*"
       ]
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:*"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.29.137:*"
   },
   "icons": {
     "16": "icons/icon16.png",

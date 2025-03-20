@@ -9,241 +9,111 @@ const Popup = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check backend connection first
-    checkBackendConnection();
-    
-    // Load saved settings
-    chrome.storage.local.get(['enabled', 'quality'], (result) => {
-      setIsEnabled(result.enabled || false);
-      setQuality(result.quality || 'high');
-    });
-
-    // Check if content script is loaded
-    checkContentScript();
+    initializePopup();
   }, []);
+
+  const initializePopup = async () => {
+    try {
+      // Get current state
+      const state = await chrome.storage.local.get(['enabled', 'quality', 'backendConnected']);
+      console.log('Current state:', state);
+      
+      // Update state with stored values
+      setIsEnabled(state.enabled || false);
+      setQuality(state.quality || 'high');
+      setIsConnected(state.backendConnected || false);
+      
+      // Check backend connection
+      await checkBackendConnection();
+      
+    } catch (error) {
+      console.error('Popup initialization error:', error);
+      setError('Failed to initialize popup');
+    }
+  };
 
   const checkBackendConnection = async () => {
     try {
       console.log('Checking backend connection...');
-      
-      // Try localhost first, then 127.0.0.1 if that fails
-      let response;
-      try {
-        response = await chrome.runtime.sendMessage({
-          type: 'API_REQUEST',
-          url: 'http://192.168.29.137:5000/',
-          options: {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json'
-            }
-          }
-        });
-      } catch (localhostError) {
-        console.log('Localhost connection failed, trying 127.0.0.1...');
-        response = await chrome.runtime.sendMessage({
-          type: 'API_REQUEST',
-          url: 'http://192.168.29.137:5000/',
-          options: {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json'
-            }
-          }
-        });
-      }
-
-      if (!response.success) {
-        throw new Error(response.error || 'Backend server is not responding');
-      }
-
-      console.log('Backend connection successful');
-      setIsConnected(true);
-      setError(null);
-    } catch (error) {
-      console.error('Backend connection failed:', error);
-      setIsConnected(false);
-      setError('Backend server is not running. Please start the server.');
-    }
-  };
-
-  const checkContentScript = () => {
-    console.log('Checking content script...');
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]?.url?.includes('youtube.com/watch')) {
-        setError('Please navigate to a YouTube video page');
-        return;
-      }
-
-      chrome.runtime.sendMessage({ action: 'checkContentScript' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Content script check failed:', chrome.runtime.lastError);
-          setError('Failed to check content script status');
-          return;
-        }
-
-        if (response?.error) {
-          console.error('Content script error:', response.error);
-          setError(response.error);
-        } else {
-          console.log('Content script check successful');
-          setError(null);
-        }
+      const response = await chrome.runtime.sendMessage({
+        action: 'API_REQUEST',
+        endpoint: '/health',
+        method: 'GET',
+        data: null
       });
-    });
+      
+      console.log('Backend response:', response);
+      
+      // Check if we got a response and it's healthy
+      if (response && response.status === 'healthy') {
+        setIsConnected(true);
+        setError(null);
+        // Update storage
+        chrome.storage.local.set({ backendConnected: true });
+        console.log('Backend connection successful');
+      } else {
+        throw new Error(response?.message || 'Backend is not healthy');
+      }
+    } catch (error) {
+      console.error('Backend connection error:', error);
+      setIsConnected(false);
+      setError('Backend server is not running. Please start the server and try again.');
+      // Update storage
+      chrome.storage.local.set({ backendConnected: false });
+    }
   };
 
   const handleToggle = async () => {
-    if (!isConnected) {
-      setError('Cannot enable translation: Backend is not connected');
-      return;
-    }
-
     try {
-      // First check if we're on a YouTube page
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const currentTab = tabs[0];
-      
-      if (!currentTab?.url?.includes('youtube.com/watch')) {
-        setError('Please navigate to a YouTube video page');
+      if (!isConnected) {
+        setError('Please ensure the backend server is running');
         return;
       }
 
-      // Try to inject the content script first
-      console.log('Injecting content script...');
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: currentTab.id },
-          files: ['content_script.bundle.js']
-        });
-        console.log('Content script injected successfully');
-        
-        // Also inject CSS
-        await chrome.scripting.insertCSS({
-          target: { tabId: currentTab.id },
-          files: ['content_script.css']
-        });
-        console.log('CSS injected successfully');
-      } catch (injectErr) {
-        console.log('Injection error (might already be injected):', injectErr);
-        // Continue anyway as the script might already be injected
+      const response = await chrome.runtime.sendMessage({
+        action: 'toggleTranslation',
+        enabled: !isEnabled
+      });
+      
+      if (response.success) {
+        const newEnabled = response.isEnabled;
+        setIsEnabled(newEnabled);
+        chrome.storage.local.set({ enabled: newEnabled });
+        setError(null);
+      } else {
+        throw new Error(response.error || 'Failed to toggle translation');
       }
-
-      // Function to try sending message with retries and increasing delays
-      const sendMessageWithRetry = async (retries = 5, initialDelay = 1000) => {
-        for (let i = 0; i < retries; i++) {
-          try {
-            // Exponential backoff delay
-            const delay = initialDelay * Math.pow(2, i);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            console.log(`Attempt ${i + 1}: Sending ping...`);
-            // Try to ping first
-            const pingResponse = await new Promise((resolve, reject) => {
-              chrome.tabs.sendMessage(currentTab.id, { action: 'ping' }, response => {
-                if (chrome.runtime.lastError) {
-                  reject(chrome.runtime.lastError);
-                } else {
-                  resolve(response);
-                }
-              });
-            });
-
-            console.log('Ping response:', pingResponse);
-
-            // If not initialized, wait and retry
-            if (!pingResponse?.initialized) {
-              console.log('Content script not initialized yet, waiting...');
-              throw new Error('Content script not initialized');
-            }
-
-            // If initialized but overlay missing, wait a bit more
-            if (!pingResponse?.overlayExists) {
-              console.log('Overlay not created yet, waiting...');
-              throw new Error('Overlay not created');
-            }
-
-            // If ping successful, send the actual toggle message
-            const newEnabled = !isEnabled;
-            const toggleResponse = await new Promise((resolve, reject) => {
-              chrome.tabs.sendMessage(currentTab.id, {
-                action: 'toggleTranslation',
-                enabled: newEnabled
-              }, response => {
-                if (chrome.runtime.lastError) {
-                  reject(chrome.runtime.lastError);
-                } else if (response?.success) {
-                  resolve(newEnabled);
-                } else if (response?.error) {
-                  reject(new Error(response.error));
-                } else {
-                  reject(new Error('Invalid toggle response'));
-                }
-              });
-            });
-
-            // If we get here, message was sent successfully
-            console.log('Toggle message sent successfully');
-            setIsEnabled(newEnabled);
-            await chrome.storage.local.set({ enabled: newEnabled });
-            setError(null);
-            return; // Success, exit the function
-          } catch (err) {
-            console.log(`Attempt ${i + 1} failed:`, err);
-            if (i === retries - 1) {
-              // On last attempt, try re-injecting the content script
-              console.log('Last attempt failed, trying to re-inject content script...');
-              try {
-                await chrome.scripting.executeScript({
-                  target: { tabId: currentTab.id },
-                  files: ['content_script.bundle.js']
-                });
-                await chrome.scripting.insertCSS({
-                  target: { tabId: currentTab.id },
-                  files: ['content_script.css']
-                });
-                // Give it one last try after re-injection
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                throw new Error('Failed after content script re-injection');
-              } catch (finalErr) {
-                throw new Error('Toggle failed after multiple retries and re-injection');
-              }
-            }
-          }
-        }
-      };
-
-      // Try to send the message with retries
-      await sendMessageWithRetry();
-    } catch (err) {
-      console.error('Toggle operation failed:', err);
-      setError('Failed to toggle translation. Please refresh the page and try again.');
+    } catch (error) {
+      console.error('Toggle error:', error);
+      setError('Failed to toggle translation');
       setIsEnabled(false);
-      await chrome.storage.local.set({ enabled: false });
     }
   };
 
-  const handleQualityChange = (e) => {
+  const handleQualityChange = async (e) => {
     const newQuality = e.target.value;
-    setQuality(newQuality);
-    chrome.storage.local.set({ quality: newQuality });
-    
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: 'updateQuality',
-          quality: newQuality
-        }).catch(err => {
-          console.error('Failed to send quality update:', err);
-        });
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'updateQuality',
+        quality: newQuality
+      });
+      
+      if (response.success) {
+        setQuality(newQuality);
+        chrome.storage.local.set({ quality: newQuality });
+        setError(null);
+      } else {
+        throw new Error(response.error || 'Failed to update quality');
       }
-    });
+    } catch (error) {
+      console.error('Quality update error:', error);
+      setError('Failed to update quality setting');
+    }
   };
 
   const handleRetry = () => {
     setError(null);
     checkBackendConnection();
-    checkContentScript();
   };
 
   return (

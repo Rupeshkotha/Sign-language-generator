@@ -9,8 +9,12 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://www.youtube.com/*"
+    "https://www.youtube.com/*",
+    "http://192.168.29.137:5000/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://192.168.29.137:5000/"
+  },
   "action": {
     "default_popup": "index.html",
     "default_icon": {

@@ -12,9 +12,12 @@ app = Flask(__name__)
 # Enable CORS for all routes with proper configuration
 CORS(app, resources={
     r"/*": {
-        "origins": ["chrome-extension://*", "http://localhost:*"],
+        "origins": ["*"],  # Allow all origins during development
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Accept"]
+        "allow_headers": ["Content-Type", "Accept", "Authorization", "Origin", "X-Requested-With"],
+        "expose_headers": ["Content-Type", "X-CSRFToken"],
+        "supports_credentials": True,
+        "max_age": 3600
     }
 })
 
@@ -65,13 +68,16 @@ try:
         word_to_id_path=WORD_TO_ID_PATH,
         word_embeddings_path=WORD_EMBEDDINGS_PATH
     )
+    print("Loading word extractor...")
+    word_extractor = WordExtractor()
     components_healthy = True
-    print("Model loaded successfully!")
+    print("Model and word extractor loaded successfully!")
 except Exception as e:
     print(f"Error during initialization: {str(e)}")
     print("Full traceback:")
     traceback.print_exc()
     sign_generator = None
+    word_extractor = None
     components_healthy = False
 
 @app.route('/')
@@ -168,30 +174,50 @@ def get_sign():
             
         elif 'video_url' in data:
             video_url = data['video_url']
+            timestamp = data.get('timestamp', 0)
+            
             if not video_url:
                 raise ValueError("Empty video URL provided")
                 
-            # Extract words from video
+            # Extract words from video at current timestamp
             word_data = word_extractor.extract_words(video_url)
             if not word_data or not word_data.get('words'):
                 raise ValueError(f"Could not extract words from video: {video_url}")
-                
-            # Generate sign data for each word
-            results = []
-            for word in word_data['words']:
-                sign_data = sign_generator.generate_keypoints(word)
-                if sign_data:
-                    results.append({
-                        "word": word,
-                        "keyframes": sign_data["keyframes"],
-                        "duration": sign_data["duration"],
-                        "fps": sign_data.get("fps", 30)
-                    })
+            
+            # Find the word at the current timestamp
+            current_word = None
+            for i, time in enumerate(word_data.get('timestamps', [])):
+                if time <= timestamp:
+                    current_word = word_data['words'][i]
+                else:
+                    break
+            
+            if not current_word:
+                # If no word found at timestamp, return empty result
+                return jsonify({
+                    "success": True,
+                    "data": {
+                        "word": "",
+                        "keyframes": [],
+                        "duration": 0,
+                        "fps": 30
+                    }
+                })
+            
+            # Generate sign data for the current word
+            sign_data = sign_generator.generate_keypoints(current_word)
+            if not sign_data:
+                raise ValueError(f"Could not generate sign data for word: {current_word}")
             
             return jsonify({
                 "success": True,
-                "data": results,
-                "timestamps": word_data.get('timestamps', [])
+                "data": {
+                    "word": current_word,
+                    "keyframes": sign_data["keyframes"],
+                    "duration": sign_data["duration"],
+                    "fps": sign_data.get("fps", 30),
+                    "timestamp": timestamp
+                }
             })
             
         else:
